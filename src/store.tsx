@@ -15,7 +15,15 @@ import {
   readBase64,
 } from '@/src/photos';
 import { StorageKeys, load, save, type StorageKey } from '@/src/storage';
-import type { ClosetItem, DayPlan, DressCodes, Forecast, ItemTags, Settings } from '@/src/types';
+import type {
+  ClosetItem,
+  DayPlan,
+  DressCodes,
+  Forecast,
+  Formality,
+  ItemTags,
+  Settings,
+} from '@/src/types';
 
 export const DEFAULT_SETTINGS: Settings = {
   unit: 'C',
@@ -43,6 +51,13 @@ interface AppState {
   /** Deletes the photo file, the closet entry, and the ID from every plan. */
   removeItem: (id: string) => void;
   setSettings: (patch: Partial<Settings>) => void;
+  /** Replaces every plan — what a whole-week regenerate persists. */
+  setPlans: (plans: DayPlan[]) => void;
+  /** Inserts or replaces the plan for one date; the other days are untouched. */
+  setDayPlan: (plan: DayPlan) => void;
+  setForecast: (forecast: Forecast | null) => void;
+  /** Sets a day's dress code. `null` clears it back to "None". */
+  setDressCode: (date: string, formality: Formality | null) => void;
   /**
    * Adds an item to the tagging queue. Safe to call repeatedly: an item that
    * is already queued or in flight is ignored. One request at a time.
@@ -154,10 +169,10 @@ function usePersist<T, S>(
 export function AppStateProvider({ children }: { children: ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
   const [closet, setCloset] = useState<ClosetItem[]>([]);
-  const [plans, setPlans] = useState<DayPlan[]>([]);
+  const [plans, setPlansState] = useState<DayPlan[]>([]);
   const [settings, setSettingsState] = useState<Settings>(DEFAULT_SETTINGS);
-  const [forecast, setForecast] = useState<Forecast | null>(null);
-  const [dressCodes, setDressCodes] = useState<DressCodes>({});
+  const [forecast, setForecastState] = useState<Forecast | null>(null);
+  const [dressCodes, setDressCodesState] = useState<DressCodes>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -181,7 +196,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         const liveIds = new Set(items.map((item) => item.id));
 
         setCloset(items);
-        setPlans(
+        setPlansState(
           (Array.isArray(storedPlans) ? (storedPlans as DayPlan[]) : [])
             .filter((plan): plan is DayPlan => !!plan && typeof plan === 'object')
             .map((plan) => ({
@@ -192,8 +207,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
             }))
         );
         setSettingsState({ ...DEFAULT_SETTINGS, ...asRecord<Partial<Settings>>(storedSettings) });
-        setForecast(storedForecast ?? null);
-        setDressCodes(asRecord<DressCodes>(storedDressCodes));
+        setForecastState(storedForecast ?? null);
+        setDressCodesState(asRecord<DressCodes>(storedDressCodes));
       } catch (error) {
         // Nothing here should throw, but a hydrate that dies would leave the
         // app stuck behind the splash screen. Start empty instead.
@@ -256,7 +271,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
       setCloset((prev) => prev.filter((item) => item.id !== id));
       setTagError(id, null);
-      setPlans((prev) =>
+      setPlansState((prev) =>
         prev.map((plan) =>
           plan.itemIds.includes(id)
             ? { ...plan, itemIds: plan.itemIds.filter((itemId) => itemId !== id) }
@@ -269,6 +284,48 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
   const setSettings = useCallback((patch: Partial<Settings>) => {
     setSettingsState((prev) => ({ ...prev, ...patch }));
+  }, []);
+
+  /* --------------------------------------------------------- week planning
+   *
+   * Both writers run every incoming plan through `prunePlan` first. A plan is
+   * validated against the closet before it gets here, but an item can be
+   * deleted while the request is in flight — `removeItem` has already been and
+   * gone by then, so without this the dead ID would land in the store behind
+   * it. (The collage filters through the closet map too; this just keeps what
+   * is persisted honest.)
+   */
+
+  const setPlans = useCallback((next: DayPlan[]) => {
+    const liveIds = new Set(closetRef.current.map((item) => item.id));
+    setPlansState(sortByDate(next.map((plan) => prunePlan(plan, liveIds))));
+  }, []);
+
+  const setDayPlan = useCallback((plan: DayPlan) => {
+    const liveIds = new Set(closetRef.current.map((item) => item.id));
+    const pruned = prunePlan(plan, liveIds);
+    setPlansState((prev) => {
+      const others = prev.filter((existing) => existing.date !== pruned.date);
+      return sortByDate([...others, pruned]);
+    });
+  }, []);
+
+  const setForecast = useCallback((next: Forecast | null) => {
+    setForecastState(next);
+  }, []);
+
+  const setDressCode = useCallback((date: string, formality: Formality | null) => {
+    if (!date) return;
+    setDressCodesState((prev) => {
+      if (formality === null) {
+        if (!(date in prev)) return prev;
+        const next = { ...prev };
+        delete next[date];
+        return next;
+      }
+      if (prev[date] === formality) return prev;
+      return { ...prev, [date]: formality };
+    });
   }, []);
 
   /* ------------------------------------------------------- tagging queue
@@ -374,6 +431,10 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         updateItem,
         removeItem,
         setSettings,
+        setPlans,
+        setDayPlan,
+        setForecast,
+        setDressCode,
         tagItem,
       }}>
       {children}
@@ -383,6 +444,24 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
 function identity<T>(value: T): T {
   return value;
+}
+
+/** Keeps the week in calendar order, whichever order the AI answered in. */
+function sortByDate(plans: DayPlan[]): DayPlan[] {
+  return [...plans].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/** Drops IDs that are no longer in the closet, and any duplicate. */
+function prunePlan(plan: DayPlan, liveIds: Set<string>): DayPlan {
+  // An empty closet means either "nothing to check against" or a ref that has
+  // not caught up yet. Either way, emptying every plan would be the wrong
+  // reading — and `removeItem` already strips IDs one by one as items go.
+  if (liveIds.size === 0) return plan;
+
+  const itemIds = (Array.isArray(plan.itemIds) ? plan.itemIds : []).filter(
+    (id, index, all) => liveIds.has(id) && all.indexOf(id) === index
+  );
+  return itemIds.length === plan.itemIds?.length ? plan : { ...plan, itemIds };
 }
 
 /** Narrows an unknown blob to a plain object, or `{}` if it is anything else. */

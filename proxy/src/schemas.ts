@@ -100,6 +100,12 @@ export const PlanRequestSchema = z.object({
     .default([]),
   dressCodes: z.record(z.string(), FormalitySchema).default({}),
   stylePreference: z.string().default(''),
+  /**
+   * App-computed facts about what the closet contains (e.g. "no rainproof
+   * items"). These are not taste — they tell the model which rules it
+   * cannot satisfy, so it stops trying.
+   */
+  closetNotes: z.array(z.string()).default([]),
   violations: z.array(z.string()).default([]),
 });
 

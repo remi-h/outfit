@@ -122,6 +122,15 @@ function buildPlanUserMessage(body: PlanRequest): string {
       line('Outfits already planned for other days (do not change these)', body.otherDays),
     );
   }
+  if (body.closetNotes.length > 0) {
+    parts.push(
+      [
+        '## Closet notes',
+        'Facts about this closet, checked by the app. Not preferences:',
+        ...body.closetNotes.map((n) => `- ${n}`),
+      ].join('\n'),
+    );
+  }
   if (body.stylePreference.trim().length > 0) {
     parts.push(`## Style preference\n${body.stylePreference.trim()}`);
   }
