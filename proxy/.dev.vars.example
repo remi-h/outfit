@@ -1,0 +1,11 @@
+# Copy to `proxy/.dev.vars` (gitignored) for `npx wrangler dev`.
+# Placeholders only — never commit a real key.
+#
+# In production these two are Worker secrets, not vars:
+#   npx wrangler secret put ANTHROPIC_API_KEY
+#   npx wrangler secret put APP_TOKEN
+
+ANTHROPIC_API_KEY=sk-ant-REPLACE_ME
+# Any long random string. Must match EXPO_PUBLIC_APP_TOKEN in the app's .env.
+# e.g. `openssl rand -hex 24`
+APP_TOKEN=REPLACE_ME
