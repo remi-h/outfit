@@ -1,0 +1,29 @@
+# deps
+node_modules/
+proxy/node_modules/
+
+# expo
+.expo/
+dist/
+web-build/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+
+# secrets / local config
+.env
+.env.local
+proxy/.dev.vars
+
+# cloudflare
+.wrangler/
+
+# macOS
+.DS_Store
+
+# logs
+npm-debug.*
+yarn-error.*
