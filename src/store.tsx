@@ -1,8 +1,21 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 
-import { deletePhoto, photoExists, photoUriFor } from '@/src/photos';
+import {
+  PROXY_NOT_CONFIGURED_MESSAGE,
+  isProxyConfigured,
+  parseItemTags,
+  tagImage,
+  toApiError,
+} from '@/src/api';
+import {
+  deletePhoto,
+  photoExists,
+  photoFileName,
+  photoUriFor,
+  readBase64,
+} from '@/src/photos';
 import { StorageKeys, load, save, type StorageKey } from '@/src/storage';
-import type { ClosetItem, DayPlan, DressCodes, Forecast, Settings } from '@/src/types';
+import type { ClosetItem, DayPlan, DressCodes, Forecast, ItemTags, Settings } from '@/src/types';
 
 export const DEFAULT_SETTINGS: Settings = {
   unit: 'C',
@@ -18,12 +31,23 @@ interface AppState {
   settings: Settings;
   forecast: Forecast | null;
   dressCodes: DressCodes;
+  /**
+   * Why the last tagging attempt for an item did not produce tags, keyed by
+   * item ID. In memory only — after a restart a `failed` item just shows a
+   * generic "tap Retag" line, which is all the user can act on anyway.
+   */
+  tagErrors: Record<string, string>;
 
   addItems: (items: ClosetItem[]) => void;
   updateItem: (id: string, patch: Partial<Omit<ClosetItem, 'id'>>) => void;
   /** Deletes the photo file, the closet entry, and the ID from every plan. */
   removeItem: (id: string) => void;
   setSettings: (patch: Partial<Settings>) => void;
+  /**
+   * Adds an item to the tagging queue. Safe to call repeatedly: an item that
+   * is already queued or in flight is ignored. One request at a time.
+   */
+  tagItem: (id: string) => void;
 }
 
 const AppStateContext = createContext<AppState | null>(null);
@@ -49,6 +73,25 @@ function serializeCloset(items: ClosetItem[]): StoredClosetItem[] {
   return items.map(({ photoUri, ...rest }) => ({ ...rest, photoFile: fileNameOf(photoUri) }));
 }
 
+const TAG_STATUSES: readonly ClosetItem['tagStatus'][] = ['pending', 'tagging', 'tagged', 'failed'];
+
+/**
+ * Decides what an item's status is at cold start.
+ *
+ * `tagging` can only have been written by a request that was in flight when
+ * the process died — nothing is running now, and no HTTP call survives a kill
+ * — so it goes back to `pending` and the Closet screen picks it up again.
+ * `tagged` without usable tags is equally impossible and equally recoverable.
+ */
+function restoreTagStatus(status: unknown, tags: ItemTags | null): ClosetItem['tagStatus'] {
+  const known = TAG_STATUSES.includes(status as ClosetItem['tagStatus'])
+    ? (status as ClosetItem['tagStatus'])
+    : 'pending';
+  if (known === 'tagging') return 'pending';
+  if (known === 'tagged' && !tags) return 'pending';
+  return known;
+}
+
 function deserializeCloset(stored: unknown): ClosetItem[] {
   if (!Array.isArray(stored)) return [];
 
@@ -62,13 +105,16 @@ function deserializeCloset(stored: unknown): ClosetItem[] {
     if (typeof entry.id !== 'string' || typeof name !== 'string') continue;
 
     try {
+      // Tags go back through the same validator as a fresh AI response, so a
+      // hand-edited or half-written blob can never put a bad shape in state.
+      const tags = parseItemTags(entry.tags);
       items.push({
         id: entry.id,
         photoUri: photoUriFor(fileNameOf(name)),
         createdAt:
           typeof entry.createdAt === 'string' ? entry.createdAt : new Date(0).toISOString(),
-        tags: entry.tags ?? null,
-        tagStatus: entry.tagStatus ?? 'pending',
+        tags,
+        tagStatus: restoreTagStatus(entry.tagStatus, tags),
       });
     } catch (error) {
       // An unusable file name (path validation throws) just drops the entry.
@@ -168,7 +214,25 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   usePersist(StorageKeys.forecast, forecast, hydrated, identity);
   usePersist(StorageKeys.dressCodes, dressCodes, hydrated, identity);
 
-  // Lets removeItem find the photo to delete without re-creating the callback.
+  const [tagErrors, setTagErrors] = useState<Record<string, string>>({});
+
+  /** Records (or clears, with `null`) the message shown for a tagging attempt. */
+  const setTagError = useCallback((id: string, message: string | null) => {
+    setTagErrors((prev) => {
+      if (message === null) {
+        if (!(id in prev)) return prev;
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      }
+      if (prev[id] === message) return prev;
+      return { ...prev, [id]: message };
+    });
+  }, []);
+
+  // Lets removeItem and the tagging queue read the closet without being
+  // re-created on every change. It lags by one commit, so it is only used for
+  // "does this still exist" questions, never as the source of a photo path.
   const closetRef = useRef<ClosetItem[]>(closet);
   useEffect(() => {
     closetRef.current = closet;
@@ -183,25 +247,118 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     setCloset((prev) => prev.map((item) => (item.id === id ? { ...item, ...patch } : item)));
   }, []);
 
-  const removeItem = useCallback((id: string) => {
-    // File IO happens here rather than inside the state updater, which React
-    // may run more than once.
-    const target = closetRef.current.find((item) => item.id === id);
-    if (target) deletePhoto(target.photoUri);
+  const removeItem = useCallback(
+    (id: string) => {
+      // File IO happens here rather than inside the state updater, which React
+      // may run more than once.
+      const target = closetRef.current.find((item) => item.id === id);
+      if (target) deletePhoto(target.photoUri);
 
-    setCloset((prev) => prev.filter((item) => item.id !== id));
-    setPlans((prev) =>
-      prev.map((plan) =>
-        plan.itemIds.includes(id)
-          ? { ...plan, itemIds: plan.itemIds.filter((itemId) => itemId !== id) }
-          : plan
-      )
-    );
-  }, []);
+      setCloset((prev) => prev.filter((item) => item.id !== id));
+      setTagError(id, null);
+      setPlans((prev) =>
+        prev.map((plan) =>
+          plan.itemIds.includes(id)
+            ? { ...plan, itemIds: plan.itemIds.filter((itemId) => itemId !== id) }
+            : plan
+        )
+      );
+    },
+    [setTagError]
+  );
 
   const setSettings = useCallback((patch: Partial<Settings>) => {
     setSettingsState((prev) => ({ ...prev, ...patch }));
   }, []);
+
+  /* ------------------------------------------------------- tagging queue
+   *
+   * IDs waiting to be tagged, plus the one currently in flight. Exactly one
+   * `/tag` request runs at a time: the Worker's rate limit is shared with
+   * `/plan`, and five base64 JPEGs in the air at once is how you make Expo Go
+   * run out of memory. The loop lives in the provider so it keeps draining
+   * while the user navigates away from the Closet tab.
+   */
+  const tagQueueRef = useRef<string[]>([]);
+  const tagInFlightRef = useRef<string | null>(null);
+  const tagDrainingRef = useRef(false);
+
+  const drainTagQueue = useCallback(async () => {
+    // A single drain loop, ever. The check and the flag are set in the same
+    // synchronous block, so a second caller can never slip past it.
+    if (tagDrainingRef.current) return;
+    tagDrainingRef.current = true;
+
+    try {
+      for (let id = tagQueueRef.current.shift(); id != null; id = tagQueueRef.current.shift()) {
+        tagInFlightRef.current = id;
+        try {
+          // The photo path is a pure function of the ID, so the queue never
+          // has to wait for React to commit a freshly added item before it can
+          // read the file. A missing file means the item was deleted
+          // (removeItem unlinks it) — skip it.
+          const photoUri =
+            closetRef.current.find((candidate) => candidate.id === id)?.photoUri ??
+            photoUriFor(photoFileName(id));
+          if (!photoExists(photoUri)) continue;
+
+          setTagError(id, null);
+          // `updateItem` is a no-op for an ID that is no longer in the closet,
+          // which is what makes "deleted while tagging" harmless.
+          updateItem(id, { tagStatus: 'tagging' });
+
+          try {
+            // An unreadable file comes back empty; `tagImage` turns that into
+            // a `bad_request` ApiError rather than a raw file-system message.
+            const base64 = await readBase64(photoUri).catch(() => '');
+            const tags = await tagImage(base64);
+            updateItem(id, { tags, tagStatus: 'tagged' });
+          } catch (error) {
+            const apiError = toApiError(error);
+            console.warn(`[tagging] ${id} failed (${apiError.code})`, apiError.message);
+            // No auto-retry: a failed item waits for the Retag button.
+            updateItem(id, { tagStatus: 'failed' });
+            // Don't keep a message for an item deleted mid-request.
+            if (closetRef.current.some((candidate) => candidate.id === id)) {
+              setTagError(id, apiError.message);
+            }
+          }
+        } finally {
+          tagInFlightRef.current = null;
+        }
+
+        // Hand a frame back to the UI between items.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+    } finally {
+      tagDrainingRef.current = false;
+    }
+  }, [updateItem, setTagError]);
+
+  const tagItem = useCallback(
+    (id: string) => {
+      if (tagInFlightRef.current === id || tagQueueRef.current.includes(id)) return;
+      // Deliberately no closet lookup: the Closet screen enqueues an item in
+      // the same tick it adds it, and React has not committed that state yet.
+      // The drain loop validates against the photo file instead.
+
+      if (!isProxyConfigured()) {
+        // Nothing to call. Leave the item where the user can retry it later
+        // rather than burning it to `failed` for a missing .env value.
+        const status = closetRef.current.find((candidate) => candidate.id === id)?.tagStatus;
+        if (status === 'failed' || status === 'tagging') {
+          updateItem(id, { tagStatus: 'pending' });
+        }
+        setTagError(id, PROXY_NOT_CONFIGURED_MESSAGE);
+        return;
+      }
+
+      setTagError(id, null);
+      tagQueueRef.current.push(id);
+      void drainTagQueue();
+    },
+    [drainTagQueue, setTagError, updateItem]
+  );
 
   return (
     <AppStateContext.Provider
@@ -212,10 +369,12 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         settings,
         forecast,
         dressCodes,
+        tagErrors,
         addItems,
         updateItem,
         removeItem,
         setSettings,
+        tagItem,
       }}>
       {children}
     </AppStateContext.Provider>

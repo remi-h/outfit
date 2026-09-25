@@ -1,0 +1,27 @@
+name = "outfit-proxy"
+main = "src/index.ts"
+compatibility_date = "2026-09-24"
+
+# No `nodejs_compat`. Checked, not guessed: the bundle @anthropic-ai/sdk
+# 0.128.0 produces for Workers resolves to the SDK's own `internal/
+# node.browser.mjs`, which stubs every Node built-in, so the bundle contains
+# zero `node:` imports. Its only references to `Buffer` / `process` sit behind
+# `typeof globalThis.X !== "undefined"` guards. It uses global `fetch` and Web
+# Crypto, both of which Workers provide. Turning the flag on would define
+# `process` and push the SDK down its Node code paths for no benefit.
+compatibility_flags = []
+
+workers_dev = true
+
+[observability]
+enabled = true
+
+# ---------------------------------------------------------------------------
+# Secrets — NEVER put these in this file; it is committed.
+#
+#   npx wrangler secret put ANTHROPIC_API_KEY
+#   npx wrangler secret put APP_TOKEN
+#
+# For `npx wrangler dev`, put the same two names in proxy/.dev.vars
+# (gitignored) — see .dev.vars.example.
+# ---------------------------------------------------------------------------

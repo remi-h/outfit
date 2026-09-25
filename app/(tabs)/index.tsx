@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActionSheetIOS,
   ActivityIndicator,
@@ -11,6 +11,7 @@ import {
 import type { ImagePickerAsset } from 'expo-image-picker';
 
 import { Text, View, useThemeColor } from '@/components/Themed';
+import { PROXY_NOT_CONFIGURED_MESSAGE, isProxyConfigured } from '@/src/api';
 import ClosetGrid from '@/src/components/ClosetGrid';
 import EmptyState from '@/src/components/EmptyState';
 import { importAsset, pickFromCamera, pickFromLibrary, type PickResult } from '@/src/photos';
@@ -21,7 +22,7 @@ type Source = 'camera' | 'library';
 
 export default function ClosetScreen() {
   const router = useRouter();
-  const { closet, addItems } = useAppState();
+  const { closet, addItems, tagItem } = useAppState();
   const tint = useThemeColor({}, 'tint');
 
   const [importing, setImporting] = useState<{ done: number; total: number } | null>(null);
@@ -48,6 +49,9 @@ export default function ClosetScreen() {
             tagStatus: 'pending',
           };
           addItems([item]);
+          // Queue it straight away: the queue runs one request at a time, so
+          // early photos are already being tagged while later ones resize.
+          tagItem(id);
         } catch (error) {
           failures += 1;
           console.warn('[closet] import failed', asset.uri, error);
@@ -65,8 +69,22 @@ export default function ClosetScreen() {
         );
       }
     },
-    [addItems]
+    [addItems, tagItem]
   );
+
+  // Anything still `pending` when the screen first mounts was either never
+  // sent or was interrupted by a kill (hydrate rewinds `tagging` to `pending`).
+  // Re-queue it once per mount; `tagItem` ignores IDs already in the queue.
+  const resumedRef = useRef(false);
+  useEffect(() => {
+    if (resumedRef.current) return;
+    resumedRef.current = true;
+    for (const item of closet) {
+      if (item.tagStatus === 'pending') tagItem(item.id);
+    }
+    // Deliberately mount-only: later pending items are queued by runImport.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleDenied = useCallback((source: Source, canAskAgain: boolean) => {
     const what = source === 'camera' ? 'the camera' : 'your photo library';
@@ -133,18 +151,30 @@ export default function ClosetScreen() {
     [router]
   );
 
+  // Without a proxy URL nothing can be tagged; say so once, at the top, rather
+  // than marking every item failed.
+  const showProxyNotice = !isProxyConfigured() && closet.length > 0;
+
   return (
     <View style={styles.container}>
-      {closet.length === 0 && !importing ? (
-        <EmptyState
-          title="Your closet is empty"
-          message="Add photos of your clothes to get started."
-          actionLabel="Add clothing"
-          onAction={promptForSource}
-        />
-      ) : (
-        <ClosetGrid items={closet} onPressItem={openItem} contentInsetBottom={96} />
-      )}
+      {showProxyNotice ? (
+        <View style={styles.notice} lightColor="rgba(255,204,0,0.18)" darkColor="rgba(255,204,0,0.14)">
+          <Text style={styles.noticeText}>{PROXY_NOT_CONFIGURED_MESSAGE}</Text>
+        </View>
+      ) : null}
+
+      <View style={styles.body}>
+        {closet.length === 0 && !importing ? (
+          <EmptyState
+            title="Your closet is empty"
+            message="Add photos of your clothes to get started."
+            actionLabel="Add clothing"
+            onAction={promptForSource}
+          />
+        ) : (
+          <ClosetGrid items={closet} onPressItem={openItem} contentInsetBottom={96} />
+        )}
+      </View>
 
       {importing ? (
         <View style={styles.progress} lightColor="rgba(0,0,0,0.75)" darkColor="rgba(72,72,74,0.95)">
@@ -175,6 +205,17 @@ export default function ClosetScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  body: {
+    flex: 1,
+  },
+  notice: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  noticeText: {
+    fontSize: 13,
+    lineHeight: 18,
   },
   fab: {
     position: 'absolute',
