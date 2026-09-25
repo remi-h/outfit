@@ -297,6 +297,8 @@ export interface PlanRequest {
   otherDays: PlanRequestOtherDay[];
   dressCodes: DressCodes;
   stylePreference: string;
+  /** App-computed facts about the closet (e.g. "no rainproof items"). */
+  closetNotes: string[];
   /** Empty on the first attempt; app-generated strings on the single retry. */
   violations: string[];
 }
