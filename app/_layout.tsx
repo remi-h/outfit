@@ -47,7 +47,7 @@ function RootNavigator() {
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="item/[id]" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="item/[id]" options={{ presentation: 'modal', title: 'Item' }} />
       </Stack>
     </ThemeProvider>
   );
