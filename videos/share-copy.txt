@@ -1,0 +1,1 @@
+Introducing Outfit: photograph your clothes, and Claude tags each item and plans an outfit for every day of the coming week against the real forecast where you are. It only ever picks from what you actually own, and it won't put you in the same top two days running. Everything stays on the phone — Expo, and one tiny proxy holding the API key.

@@ -1,0 +1,1108 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <title>Outfit — brag (dark)</title>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/audio-rms.js"></script>
+    <style>
+      /* ------------------------------------------------------------------
+       * Outfit — a quiet product film, dark.
+       *
+       * Two sources of truth, and where they disagree the app wins:
+       *
+       *   the app  — constants/Colors.ts `dark`, and the StyleSheets in
+       *              src/components/. Note `tintColorDark = '#fff'`: in dark
+       *              mode Outfit's accent is WHITE, and contrastOn('#fff')
+       *              flips its button text to black. That is why "Plan week"
+       *              and the selected dress-code chip are white-on-black here
+       *              rather than blue — it is what the app actually renders.
+       *
+       *   Apple HIG dark — the semantic label/fill/separator ladder, systemGreen
+       *              for the Tagged badge, and the film's own stage treatment.
+       *
+       * The one deliberate deviation is marked ACCESSIBLE.
+       * ------------------------------------------------------------------ */
+      :root {
+        /* ---- the film's stage (HIG dark, lifted off pure black so the
+                render has somewhere to go) ---- */
+        --stage: #08080a;
+        --stage-lift: #1a1c21;
+
+        /* ---- the app, verbatim ---- */
+        --screen: #000;                         /* Colors.dark.background */
+        --tint: #fff;                           /* tintColorDark */
+        --on-tint: #000;                        /* contrastOn('#fff') */
+        --card: rgba(120, 120, 128, 0.18);      /* DayCard darkColor */
+        --tile: rgba(127, 127, 127, 0.15);      /* ItemCard / OutfitCollage */
+        --hairline: rgba(127, 127, 127, 0.5);   /* Chip border */
+
+        /* ---- Apple HIG, dark ---- */
+        --label: #f5f5f7;
+        --label-2: rgba(235, 235, 245, 0.6);
+        --label-3: rgba(235, 235, 245, 0.55);
+        --separator: rgba(84, 84, 88, 0.65);
+        --tagging: #0b62c4;                     /* ACCESSIBLE: the app's
+                                                   rgba(47,149,220,.9) "Tagging…"
+                                                   badge deepened. The app's own
+                                                   value carries its white badge
+                                                   text at 3.7:1; this carries the
+                                                   same white text at 5.9:1. */
+        --blue: #0a84ff;                        /* systemBlue dark — film furniture
+                                                   and ambient light only, never the
+                                                   app's own chrome */
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: var(--stage);
+      }
+      #root {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        /* Outfit ships no custom font, so the system face IS its identity —
+           and on this machine that face is SF Pro. Unquoted keywords only: a
+           quoted family would need an @font-face to a shipped file. */
+        font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+        color: var(--label);
+        -webkit-font-smoothing: antialiased;
+      }
+      #stage-bg {
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(
+          ellipse 72% 58% at 50% 42%,
+          var(--stage-lift) 0%,
+          #0e0f13 52%,
+          var(--stage) 100%
+        );
+      }
+      .clip {
+        position: absolute;
+        inset: 0;
+      }
+      /* Initial hidden states live here, not in a tl.set at position 0 — a
+         zero-duration set at 0 never renders at frame 0. */
+      #hero {
+        opacity: 0;
+      }
+      #sc-week {
+        opacity: 0;
+      }
+
+      /* ------------------------------------------------------ ambient light */
+      /* On a dark stage the glow is the light source, so it does more work
+         than it did on white. Still driven by music RMS, still subtle. */
+      .glow {
+        position: absolute;
+        border-radius: 50%;
+        opacity: 0.16;
+        pointer-events: none;
+        background: radial-gradient(
+          circle,
+          rgba(10, 132, 255, 0.5) 0%,
+          rgba(10, 132, 255, 0.16) 40%,
+          rgba(10, 132, 255, 0) 68%
+        );
+      }
+      #glow-a {
+        left: 410px;
+        top: -110px;
+        width: 1100px;
+        height: 1100px;
+      }
+      #glow-b {
+        left: -60px;
+        top: -20px;
+        width: 1120px;
+        height: 1120px;
+      }
+
+      /* ------------------------------------------------------------ tiles */
+      .tile {
+        position: absolute;
+        border-radius: 30px;             /* ItemCard's 10 on a 76pt tile, to scale */
+        background: var(--tile);
+        border: 1px solid rgba(255, 255, 255, 0.07);
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .tile svg {
+        width: 74%;
+        height: 74%;
+        display: block;
+      }
+      .badge {
+        position: absolute;
+        left: 12px;
+        bottom: 12px;
+        padding: 4px 11px;
+        border-radius: 9px;
+        background: var(--tagging);
+        color: #fff;
+        font-size: 17px;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+      }
+
+      /* ------------------------------------------------- scene 1 + 2 copy */
+      #hook-line {
+        position: absolute;
+        left: 0;
+        top: 640px;
+        width: 100%;
+        text-align: center;
+        font-size: 56px;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+        opacity: 0;
+      }
+      #chips {
+        position: absolute;
+        left: 0;
+        top: 650px;
+        width: 100%;
+        display: flex;
+        justify-content: center;
+        gap: 14px;
+      }
+      .tagchip {
+        border: 1px solid var(--hairline);
+        border-radius: 999px;
+        padding: 13px 28px;
+        font-size: 28px;
+        font-weight: 600;
+        letter-spacing: -0.005em;
+        opacity: 0;
+        background: rgba(255, 255, 255, 0.03);
+      }
+      #closet-caption {
+        position: absolute;
+        left: 0;
+        top: 926px;
+        width: 100%;
+        text-align: center;
+        font-size: 32px;
+        font-weight: 400;
+        color: var(--label-2);
+        opacity: 0;
+      }
+
+      /* ----------------------------------------- scene 3 — iPhone 18 Pro */
+      /* 6.3in, 2622x1206 at 3x, logical 402x874pt. Rendered at 1.07x, so the
+         screen is 430x935 and every size inside it is a real pt value times
+         1.07 — the UI is at true device proportion, not eyeballed. */
+      #phone {
+        position: absolute;
+        left: 250px;
+        top: 65px;
+        width: 446px;                 /* 430 screen + 2 x 8 band */
+        height: 951px;                /* 935 screen + 2 x 8 band */
+        border-radius: 67px;
+        padding: 8px;
+        background: linear-gradient(160deg, #6a6a70 0%, #2e2e33 28%, #45454b 62%, #26262a 100%);
+        box-shadow:
+          0 0 0 1px rgba(255, 255, 255, 0.12),
+          0 44px 90px rgba(0, 0, 0, 0.66),
+          0 0 120px rgba(10, 132, 255, 0.08);
+      }
+      #screen {
+        position: relative;
+        width: 430px;
+        height: 935px;
+        border-radius: 59px;          /* 55pt display corner radius x 1.07 */
+        background: var(--screen);
+        overflow: hidden;
+      }
+      .island {
+        position: absolute;
+        top: 12px;
+        left: 148px;
+        width: 134px;                 /* 125 x 36pt Dynamic Island, x 1.07 */
+        height: 38px;
+        border-radius: 19px;
+        background: #000;
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+      }
+      .statusbar {
+        position: absolute;
+        top: 19px;
+        left: 32px;
+        right: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 16px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        color: var(--label);
+      }
+      .screen-content {
+        position: absolute;
+        top: 63px;                    /* 59pt top safe area */
+        left: 0;
+        right: 0;
+        bottom: 0;
+        padding: 0 17px;              /* 16pt margin */
+      }
+      .wk-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 13px 0 16px;
+      }
+      .wk-loc {
+        font-size: 21px;              /* styles.location fontSize 20 */
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        line-height: 1.18;
+      }
+      .wk-sub {
+        font-size: 14px;              /* styles.forecastState fontSize 13 */
+        font-weight: 400;
+        color: var(--label-2);
+        padding-top: 2px;
+      }
+      #plan-pill {
+        flex: none;
+        min-width: 116px;             /* styles.planButton minWidth 108 */
+        height: 47px;                 /* minHeight 44 */
+        border-radius: 999px;
+        background: var(--tint);      /* white, because tintColorDark is '#fff' */
+        color: var(--on-tint);        /* black, because contrastOn('#fff') is '#000' */
+        font-size: 16px;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .daycard {
+        background: var(--card);
+        border-radius: 15px;          /* styles.card borderRadius 14 */
+        padding: 13px;
+        margin-bottom: 10px;
+        opacity: 0;
+      }
+      .dc-top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      .dc-date {
+        font-size: 18px;              /* styles.date fontSize 17 */
+        font-weight: 700;
+        letter-spacing: -0.015em;
+      }
+      .dc-rel {
+        font-size: 14px;
+        color: var(--label-2);
+        padding-top: 2px;
+      }
+      .dc-weather {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 1px;
+        color: var(--label);
+      }
+      .dc-weather svg {
+        width: 28px;
+        height: 28px;
+        display: block;
+      }
+      .dc-temp {
+        font-size: 16px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+      .dc-wlabel {
+        font-size: 13px;
+        color: var(--label-2);
+        text-align: right;
+      }
+      .dc-chips {
+        display: flex;
+        gap: 6px;
+        padding-top: 10px;
+      }
+      .dc-chip {
+        border: 1px solid var(--hairline);
+        border-radius: 999px;
+        padding: 7px 13px;
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--label);
+      }
+      .dc-chip.on {
+        border-color: var(--tint);
+        background: var(--tint);
+        color: var(--on-tint);
+      }
+      .dc-collage {
+        display: flex;
+        gap: 8px;
+        padding-top: 10px;
+      }
+      .dc-tile {
+        width: 70px;                  /* OutfitCollage DEFAULT_TILE 76, trimmed
+                                         so seven days' worth of list still fits
+                                         a 402x874pt screen above the tab bar */
+        height: 70px;
+        border-radius: 10px;
+        background: var(--tile);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+      }
+      .dc-tile svg {
+        width: 76%;
+        height: 76%;
+        display: block;
+      }
+      .dc-footer {
+        display: flex;
+        justify-content: flex-end;
+        padding-top: 9px;
+      }
+      .dc-regen {
+        min-height: 34px;
+        padding: 0 15px;
+        border-radius: 999px;
+        border: 1px solid var(--label);
+        font-size: 14px;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+      }
+      /* The card list runs under a translucent tab bar, the way it does on
+         device — which is also what says "there are four more days below". */
+      .tabbar {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 89px;                 /* 49pt bar + 34pt home indicator */
+        padding-top: 9px;
+        display: flex;
+        align-items: flex-start;
+        background: rgba(12, 12, 14, 0.88);
+        backdrop-filter: blur(22px);
+        -webkit-backdrop-filter: blur(22px);
+        border-top: 1px solid var(--separator);
+      }
+      .tab {
+        flex: 1;
+        text-align: center;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: -0.005em;
+        color: var(--label-2);
+      }
+      .tab.on {
+        color: var(--tint);           /* tabBarActiveTintColor: Colors.dark.tint */
+      }
+      .tab svg {
+        width: 27px;
+        height: 27px;
+        display: block;
+        margin: 0 auto 3px;
+      }
+      .home-indicator {
+        position: absolute;
+        left: 140px;
+        bottom: 9px;
+        width: 150px;
+        height: 5px;
+        border-radius: 3px;
+        background: rgba(255, 255, 255, 0.36);
+      }
+      #cursor {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 36px;
+        height: 36px;
+        opacity: 0;
+      }
+      #tap-ring {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 132px;
+        height: 132px;
+        border-radius: 999px;
+        border: 3px solid rgba(255, 255, 255, 0.85);
+        opacity: 0;
+      }
+
+      /* --------------------------------------------------- scene 3 column */
+      #wk-rule {
+        position: absolute;
+        left: 880px;
+        top: 466px;
+        width: 70px;
+        height: 3px;
+        border-radius: 2px;
+        background: var(--blue);
+        opacity: 0;
+      }
+      #wk-title {
+        position: absolute;
+        left: 880px;
+        top: 504px;
+        width: 800px;
+        font-size: 62px;
+        font-weight: 600;
+        line-height: 1.12;
+        letter-spacing: -0.025em;
+        opacity: 0;
+      }
+      #wk-reason {
+        position: absolute;
+        left: 880px;
+        top: 690px;
+        width: 700px;
+        font-size: 30px;
+        font-weight: 400;
+        line-height: 1.5;
+        letter-spacing: -0.005em;
+        color: var(--label-2);
+        opacity: 0;
+      }
+
+      /* ---------------------------------------------------------- scene 4 */
+      #outro-wrap {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+      }
+      #wordmark {
+        font-size: 168px;
+        font-weight: 600;
+        letter-spacing: -0.035em;
+        line-height: 1;
+        text-shadow: 0 0 90px rgba(255, 255, 255, 0.14);
+        opacity: 0;
+      }
+      #tagline {
+        margin-top: 44px;
+        font-size: 40px;
+        font-weight: 400;
+        letter-spacing: -0.012em;
+        color: var(--label-2);
+        opacity: 0;
+      }
+      #stackline {
+        margin-top: 46px;
+        font-size: 24px;
+        font-weight: 500;
+        letter-spacing: 0.08em;
+        color: var(--label-3);
+        opacity: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="21.07"
+      data-width="1920"
+      data-height="1080"
+      data-fps="30"
+    >
+      <div id="stage-bg"></div>
+
+      <!-- Scenes 1 and 2 are one continuous shot: the jumper never cuts away,
+           it shrinks into cell 0 of the closet grid. -->
+      <section id="sc-closet" class="clip" data-start="0" data-duration="10.84" data-track-index="0">
+        <div id="glow-a" class="glow" data-layout-ignore="true"></div>
+        <div id="grid"></div>
+        <div id="hero" class="tile"></div>
+        <div id="hook-line">A photo of a jumper.</div>
+        <div id="chips"></div>
+        <div id="closet-caption">Claude tags every item.</div>
+      </section>
+
+      <section id="sc-week" class="clip" data-start="10.24" data-duration="7.45" data-track-index="1">
+        <div id="glow-b" class="glow" data-layout-ignore="true"></div>
+        <div id="phone"><div id="screen"></div></div>
+        <div id="tap-ring" data-layout-ignore="true"></div>
+        <div id="cursor" data-layout-ignore="true"></div>
+        <div id="wk-rule"></div>
+        <div id="wk-title">Seven days, from your closet.</div>
+        <div id="wk-reason">
+          Cool and showery — the waxed jacket keeps the rain off the navy jumper.
+        </div>
+      </section>
+
+      <section id="sc-outro" class="clip" data-start="17.09" data-duration="3.98" data-track-index="2">
+        <div id="outro-wrap">
+          <div id="wordmark">Outfit</div>
+          <div id="tagline">Seven days. Real weather. Your own clothes.</div>
+          <div id="stackline">Expo · Claude · everything on device</div>
+        </div>
+      </section>
+
+      <!-- Music bed. The volume lane owns every level change (an authored
+           tween would be ignored: audio_volume_double_automation). Lane t is
+           clip-local, and this clip starts at 0, so t == composition time. -->
+      <audio
+        id="music"
+        src="assets/music/happy-beats-business-moves-vol-11-by-ende-dot-app.mp3"
+        data-start="0"
+        data-duration="21.07"
+        data-track-index="10"
+        data-automation='{"version":1,"lanes":[{"target":"volume","points":[{"t":0,"v":0},{"t":0.5,"v":0.3},{"t":10.2,"v":0.3},{"t":12.2,"v":0.37},{"t":17.3,"v":0.34},{"t":19.5,"v":0.3},{"t":21.07,"v":0}]}]}'
+      ></audio>
+
+      <!-- Five tag chips, one per beat. Quietest cue in the film. -->
+      <audio id="sfx-chip-1" src="assets/sfx/ui/click2.ogg" data-start="4.75" data-duration="0.06" data-track-index="11" data-volume="0.22"></audio>
+      <audio id="sfx-chip-2" src="assets/sfx/ui/click2.ogg" data-start="5.28" data-duration="0.06" data-track-index="11" data-volume="0.22"></audio>
+      <audio id="sfx-chip-3" src="assets/sfx/ui/click2.ogg" data-start="5.80" data-duration="0.06" data-track-index="11" data-volume="0.22"></audio>
+      <audio id="sfx-chip-4" src="assets/sfx/ui/click2.ogg" data-start="6.34" data-duration="0.06" data-track-index="11" data-volume="0.22"></audio>
+      <audio id="sfx-chip-5" src="assets/sfx/ui/click2.ogg" data-start="6.86" data-duration="0.06" data-track-index="11" data-volume="0.22"></audio>
+
+      <!-- The twelfth tile seating, on the 9.50s strong cue. -->
+      <audio id="sfx-grid-done" src="assets/sfx/impact/impactSoft_medium_001.ogg" data-start="9.50" data-duration="0.19" data-track-index="12" data-volume="0.38"></audio>
+
+      <!-- The tap on "Plan week". -->
+      <audio id="sfx-tap" src="assets/sfx/interface/click_002.ogg" data-start="12.12" data-duration="0.01" data-track-index="13" data-volume="0.34"></audio>
+
+      <!-- Three day cards placing, every other beat. -->
+      <audio id="sfx-card-1" src="assets/sfx/casino/card-slide-1.ogg" data-start="12.65" data-duration="0.6" data-track-index="14" data-volume="0.28"></audio>
+      <audio id="sfx-card-2" src="assets/sfx/casino/card-slide-1.ogg" data-start="13.70" data-duration="0.6" data-track-index="14" data-volume="0.28"></audio>
+      <audio id="sfx-card-3" src="assets/sfx/casino/card-slide-1.ogg" data-start="14.76" data-duration="0.6" data-track-index="14" data-volume="0.28"></audio>
+      <!-- Nothing under the outro. Deliberately. -->
+    </div>
+
+    <script>
+/* ---------------------------------------------------------------------------
+ * Outfit — brag composition, dark.
+ *
+ * Everything here is built synchronously at load, then one paused GSAP timeline
+ * is registered on window.__timelines["main"]. No clocks, no randomness, no
+ * network, no measurement at tween time — the one rect we need is read during
+ * setup and reused as a constant.
+ *
+ * Music: happy-beats-business-moves-vol-11 (~114.84 BPM).
+ *   beat grid   1.60 2.12 2.65 3.18 3.70 4.23 4.75 5.28 5.80 6.34 6.86 7.38
+ *               7.91 8.44 8.96 9.50 10.01 10.54 11.06 11.60 12.12 12.65 13.18
+ *               13.70 14.22 14.76 15.28 15.81 16.34 16.86 17.39 17.91 18.44
+ *               18.96 19.49 20.02 20.54
+ *   strongCues  1.60 3.70 5.80 6.34 8.96 9.50 12.65 17.91
+ *
+ * Three strong-cue locks: 1.60 (the hook line lands), 8.96 (the closet grid
+ * completes), 17.91 (the wordmark lands). Everything else is beat-grid aligned
+ * or, where reading time needed the room, timed naturally.
+ * ------------------------------------------------------------------------- */
+
+/* --------------------------------------------------------------- garments */
+/* Flat silhouettes drawn for this film. The repo ships no clothing photos and
+   real ones would be the user's own wardrobe, so these are stand-ins. Built
+   the same way each time — neckline, shoulder, sleeve out, sleeve in, body,
+   hem — which is what makes a jacket read as a jacket next to a jumper. */
+
+var GARMENT = {
+  jumper: {
+    d: "M40 20 Q50 27 60 20 L70 24 L80 31 L76 64 L66 61 L66 86 L34 86 L34 61 L24 64 L20 31 L30 24 Z",
+    detail: "M34 79 H66 M24 58 L24 64 M76 58 L76 64"
+  },
+  tee: {
+    d: "M40 20 Q50 27 60 20 L70 24 L82 34 L74 46 L67 40 L67 84 L33 84 L33 40 L26 46 L18 34 L30 24 Z"
+  },
+  shirt: {
+    d: "M40 19 L44 26 L50 33 L56 26 L60 19 L70 23 L80 31 L76 64 L66 61 L66 85 L34 85 L34 61 L24 64 L20 31 L30 23 Z",
+    detail: "M44 26 L50 33 L56 26 M50 33 V85"
+  },
+  jacket: {
+    d: "M39 18 L45 28 L50 36 L55 28 L61 18 L72 23 L83 32 L78 68 L67 65 L67 87 L33 87 L33 65 L22 68 L17 32 L28 23 Z",
+    detail: "M45 28 L50 36 L55 28 M50 36 V87"
+  },
+  raincoat: {
+    d: "M38 22 Q50 10 62 22 L72 26 L83 35 L78 70 L67 67 L67 88 L33 88 L33 67 L22 70 L17 35 L28 26 Z",
+    detail: "M50 25 V88 M38 22 Q50 17 62 22"
+  },
+  jeans: {
+    d: "M33 18 L67 18 L69 42 L63 87 L53 87 L50 54 L47 87 L37 87 L31 42 Z",
+    detail: "M32 28 H68"
+  },
+  shorts: {
+    d: "M33 21 L67 21 L69 39 L66 66 L54 66 L50 45 L46 66 L34 66 L31 39 Z",
+    detail: "M32 29 H68"
+  },
+  dress: {
+    d: "M40 19 Q50 26 60 19 L68 23 L74 32 L66 37 L64 47 L77 88 L23 88 L36 47 L34 37 L26 32 L32 23 Z",
+    detail: "M36 47 H64"
+  },
+  sneaker: {
+    d: "M16 64 L33 64 L45 55 L56 58 L67 65 L80 68 Q86 70 86 77 L86 81 L16 81 Z",
+    detail: "M16 74 H86"
+  },
+  boot: {
+    d: "M35 20 L55 20 L57 61 L73 69 Q79 72 79 80 L79 82 L35 82 Z",
+    detail: "M35 64 H58"
+  },
+  cap: {
+    d: "M22 62 Q22 32 50 32 Q78 32 78 62 L84 62 Q88 62 88 68 L88 72 L22 72 Z",
+    detail: "M22 62 H78"
+  }
+};
+
+/* The wardrobe, lifted for dark. A real navy jumper on a near-black tile is a
+   hole in the screen, so every colour is the same hue raised into the range
+   where it actually reads — the restraint survives, the invisibility does not. */
+var COLOR = {
+  navy: "#5b72a8",
+  denim: "#47598a",
+  oat: "#d6ccbc",
+  olive: "#8ca173",
+  charcoal: "#8a9099",
+  offwhite: "#efece6",
+  rust: "#c9764f",
+  slate: "#94a7c0",
+  sand: "#cbb795"
+};
+
+function garmentSvg(kind, color) {
+  var g = GARMENT[kind];
+  var detail = g.detail
+    ? '<path d="' + g.detail +
+      '" fill="none" stroke="rgba(0,0,0,0.30)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>'
+    : "";
+  return (
+    '<svg viewBox="0 0 100 100" aria-hidden="true">' +
+    '<path d="' + g.d + '" fill="' + color +
+    '" stroke="rgba(255,255,255,0.16)" stroke-width="1.6" stroke-linejoin="round"/>' +
+    detail +
+    "</svg>"
+  );
+}
+
+/* --------------------------------------------------------- weather glyphs */
+/* expo-symbols renders SF Symbols on device; these are the same three shapes,
+   drawn as inline SVG so the render needs no icon font. They inherit the
+   label colour from .dc-weather. */
+
+var STROKE = 'fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"';
+
+var WEATHER = {
+  showers:
+    '<svg viewBox="0 0 100 100" aria-hidden="true"><path d="M28 56 A16 16 0 0 1 30 24 A22 22 0 0 1 70 30 A15 15 0 0 1 72 56 Z" ' +
+    STROKE + '/><path d="M34 70 L30 82 M50 70 L46 82 M66 70 L62 82" ' + STROKE + "/></svg>",
+  partly:
+    '<svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="36" cy="34" r="14" ' + STROKE +
+    '/><path d="M36 10 V4 M12 34 H6 M19 17 L15 13 M19 51 L15 55 M53 17 L57 13" ' +
+    STROKE + '/><path d="M44 84 A15 15 0 0 1 46 54 A20 20 0 0 1 82 60 A13 13 0 0 1 84 84 Z" ' + STROKE + "/></svg>",
+  cloudy:
+    '<svg viewBox="0 0 100 100" aria-hidden="true"><path d="M26 74 A18 18 0 0 1 28 38 A24 24 0 0 1 72 44 A16 16 0 0 1 74 74 Z" ' +
+    STROKE + "/></svg>"
+};
+
+/* ------------------------------------------------------------- tab glyphs */
+/* hanger / calendar / gearshape — the three SF Symbols named in
+   app/(tabs)/_layout.tsx. */
+
+var TAB_ICON = {
+  hanger:
+    '<svg viewBox="0 0 100 100" aria-hidden="true"><path d="M50 42 V34 A9 9 0 1 1 59 25" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round"/><path d="M50 42 L14 68 A5 5 0 0 0 17 77 H83 A5 5 0 0 0 86 68 Z" fill="none" stroke="currentColor" stroke-width="7" stroke-linejoin="round"/></svg>',
+  calendar:
+    '<svg viewBox="0 0 100 100" aria-hidden="true"><rect x="14" y="22" width="72" height="66" rx="10" fill="none" stroke="currentColor" stroke-width="7"/><path d="M14 44 H86 M32 12 V28 M68 12 V28" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round"/></svg>',
+  gear:
+    '<svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="15" fill="none" stroke="currentColor" stroke-width="7"/><path d="M50 12 V24 M50 76 V88 M12 50 H24 M76 50 H88 M23 23 L32 32 M68 68 L77 77 M23 77 L32 68 M68 32 L77 23" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round"/></svg>'
+};
+
+/* iOS status bar: cellular, wi-fi, battery. */
+var STATUS_GLYPHS =
+  '<svg width="58" height="15" viewBox="0 0 116 30" aria-hidden="true" style="display:block">' +
+  '<g fill="currentColor">' +
+  '<rect x="0" y="17" width="4.5" height="7" rx="1.3"/><rect x="7" y="13" width="4.5" height="11" rx="1.3"/>' +
+  '<rect x="14" y="8" width="4.5" height="16" rx="1.3"/><rect x="21" y="3" width="4.5" height="21" rx="1.3"/>' +
+  '<rect x="86" y="8" width="24" height="13" rx="4"/><rect x="112" y="12" width="3.5" height="5" rx="1.4"/>' +
+  "</g>" +
+  '<g fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round">' +
+  '<path d="M36 11 A17 17 0 0 1 60 11"/><path d="M41.5 17.5 A9.5 9.5 0 0 1 54.5 17.5"/>' +
+  "</g>" +
+  '<circle cx="48" cy="23" r="2.4" fill="currentColor"/>' +
+  "</svg>";
+
+/* ------------------------------------------------------- the closet grid */
+/* Twelve items. Cell 0 is the jumper from scene 1 — it is the same element
+   throughout, which is why scenes 1 and 2 never cut. */
+
+var CLOSET = [
+  { kind: "jumper", color: COLOR.navy },       /* 0 — the hero */
+  { kind: "tee", color: COLOR.offwhite },
+  { kind: "shirt", color: COLOR.oat },
+  { kind: "jacket", color: COLOR.charcoal },
+  { kind: "jeans", color: COLOR.denim },
+  { kind: "shorts", color: COLOR.sand },
+  { kind: "sneaker", color: COLOR.offwhite },
+  { kind: "dress", color: COLOR.olive },
+  { kind: "raincoat", color: COLOR.slate },
+  { kind: "boot", color: COLOR.rust },
+  { kind: "cap", color: COLOR.charcoal },
+  { kind: "shirt", color: COLOR.olive }
+];
+
+var TILE = 230;
+var GAP = 28;
+var GRID_LEFT = 458;   /* 960 - (4*230 + 3*28)/2 */
+var GRID_TOP = 127;    /* 500 - (3*230 + 2*28)/2 */
+var STEP = TILE + GAP;
+
+function cellLeft(i) { return GRID_LEFT + (i % 4) * STEP; }
+function cellTop(i) { return GRID_TOP + Math.floor(i / 4) * STEP; }
+
+/* Scene 1 puts the hero at 360px, centred on (960, 390). It lives in cell 0,
+   so the scene-1 pose is a pure transform away from its resting place. */
+var HERO_SCALE = 360 / TILE;
+var HERO_X = 960 - (cellLeft(0) + TILE / 2);
+var HERO_Y = 390 - (cellTop(0) + TILE / 2);
+
+var grid = document.getElementById("grid");
+grid.style.position = "absolute";
+grid.style.inset = "0";
+
+var hero = document.getElementById("hero");
+hero.style.left = cellLeft(0) + "px";
+hero.style.top = cellTop(0) + "px";
+hero.style.width = TILE + "px";
+hero.style.height = TILE + "px";
+/* No badge on the hero: we just watched it get tagged. */
+hero.innerHTML = garmentSvg(CLOSET[0].kind, CLOSET[0].color);
+
+for (var i = 1; i < CLOSET.length; i++) {
+  var t = document.createElement("div");
+  t.className = "tile gridtile";
+  t.style.left = cellLeft(i) + "px";
+  t.style.top = cellTop(i) + "px";
+  t.style.width = TILE + "px";
+  t.style.height = TILE + "px";
+  t.style.opacity = "0";
+  t.innerHTML = garmentSvg(CLOSET[i].kind, CLOSET[i].color) + '<div class="badge">Tagging…</div>';
+  grid.appendChild(t);
+}
+
+/* ------------------------------------------------------------- tag chips */
+/* The five fields of ItemTags in src/types.ts, for the navy jumper. */
+
+var TAGS = ["top", "navy", "warmth 2", "smart", "rainproof no"];
+var chips = document.getElementById("chips");
+for (var c = 0; c < TAGS.length; c++) {
+  var chip = document.createElement("div");
+  chip.className = "tagchip";
+  chip.textContent = TAGS[c];
+  chips.appendChild(chip);
+}
+
+/* ------------------------------------------------------------- Week screen */
+
+var DRESS_CODES = ["None", "Casual", "Smart", "Formal"];
+
+var DAYS = [
+  {
+    date: "Monday 29 Sep",
+    rel: "Today",
+    icon: "showers",
+    temp: "14° / 9°",
+    label: "Showers · Rain 70%",
+    chips: true,
+    outfit: [
+      { kind: "jacket", color: COLOR.charcoal },
+      { kind: "jumper", color: COLOR.navy },
+      { kind: "jeans", color: COLOR.denim },
+      { kind: "boot", color: COLOR.rust }
+    ]
+  },
+  {
+    date: "Tuesday 30 Sep",
+    rel: "Tomorrow",
+    icon: "partly",
+    temp: "18° / 11°",
+    label: "Partly cloudy · Rain 20%",
+    chips: false,
+    outfit: [
+      { kind: "shirt", color: COLOR.oat },
+      { kind: "shorts", color: COLOR.sand },
+      { kind: "sneaker", color: COLOR.offwhite },
+      { kind: "cap", color: COLOR.charcoal }
+    ]
+  },
+  {
+    date: "Wednesday 1 Oct",
+    rel: "",
+    icon: "cloudy",
+    temp: "17° / 12°",
+    label: "Cloudy · Rain 30%",
+    chips: false,
+    outfit: [
+      { kind: "tee", color: COLOR.offwhite },
+      { kind: "jeans", color: COLOR.denim },
+      { kind: "sneaker", color: COLOR.offwhite },
+      { kind: "shirt", color: COLOR.olive }
+    ]
+  }
+];
+
+function dayCardHtml(d, index) {
+  var chipRow = "";
+  if (d.chips) {
+    chipRow = '<div class="dc-chips">';
+    for (var k = 0; k < DRESS_CODES.length; k++) {
+      chipRow +=
+        '<div class="dc-chip' + (DRESS_CODES[k] === "Smart" ? " on" : "") + '">' +
+        DRESS_CODES[k] + "</div>";
+    }
+    chipRow += "</div>";
+  }
+
+  var collage = '<div class="dc-collage">';
+  for (var j = 0; j < d.outfit.length; j++) {
+    collage += '<div class="dc-tile">' + garmentSvg(d.outfit[j].kind, d.outfit[j].color) + "</div>";
+  }
+  collage += "</div>";
+
+  return (
+    '<div class="daycard" id="daycard-' + index + '">' +
+    '<div class="dc-top">' +
+    '<div><div class="dc-date">' + d.date + "</div>" +
+    (d.rel ? '<div class="dc-rel">' + d.rel + "</div>" : "") +
+    "</div>" +
+    '<div class="dc-weather">' + WEATHER[d.icon] +
+    '<div class="dc-temp">' + d.temp + "</div>" +
+    '<div class="dc-wlabel">' + d.label + "</div>" +
+    "</div></div>" +
+    chipRow +
+    collage +
+    '<div class="dc-footer"><div class="dc-regen">Regenerate</div></div>' +
+    "</div>"
+  );
+}
+
+var cardsHtml = "";
+for (var n = 0; n < DAYS.length; n++) cardsHtml += dayCardHtml(DAYS[n], n);
+
+document.getElementById("screen").innerHTML =
+  '<div class="island"></div>' +
+  '<div class="statusbar"><div>9:41</div><div>' + STATUS_GLYPHS + "</div></div>" +
+  '<div class="screen-content">' +
+  '<div class="wk-header">' +
+  '<div><div class="wk-loc">Lisbon</div>' +
+  '<div class="wk-sub">7-day forecast · updated 09:14</div></div>' +
+  '<div id="plan-pill">Plan week</div>' +
+  "</div>" +
+  cardsHtml +
+  "</div>" +
+  '<div class="tabbar">' +
+  '<div class="tab">' + TAB_ICON.hanger + "Closet</div>" +
+  '<div class="tab on">' + TAB_ICON.calendar + "Week</div>" +
+  '<div class="tab">' + TAB_ICON.gear + "Settings</div>" +
+  "</div>" +
+  '<div class="home-indicator"></div>';
+
+/* The cursor. Placement comes from one measurement, taken here at setup —
+   never from a rect read inside a tween. */
+document.getElementById("cursor").innerHTML =
+  '<svg viewBox="0 0 100 100" aria-hidden="true"><path d="M20 12 L20 80 L37 64 L48 88 L61 82 L50 58 L72 56 Z" fill="#f5f5f7" stroke="#08080a" stroke-width="5" stroke-linejoin="round"/></svg>';
+
+var pillRect = document.getElementById("plan-pill").getBoundingClientRect();
+var PILL_CX = pillRect.left + pillRect.width / 2;
+var PILL_CY = pillRect.top + pillRect.height / 2;
+
+var ring = document.getElementById("tap-ring");
+ring.style.left = PILL_CX - 66 + "px";
+ring.style.top = PILL_CY - 66 + "px";
+
+var cursorEl = document.getElementById("cursor");
+cursorEl.style.left = PILL_CX + "px";
+cursorEl.style.top = PILL_CY + "px";
+var CURSOR_FROM_X = 168;
+var CURSOR_FROM_Y = 228;
+var CURSOR_TO_X = 12;
+var CURSOR_TO_Y = 8;
+
+/* ========================================================================= */
+/*                                 timeline                                  */
+/* ========================================================================= */
+
+var tl = gsap.timeline({ paused: true });
+
+/* Baselines. Every target below is tweened by more than one fromTo, and GSAP
+ * applies fromTo "from" values at AUTHORING time, not at tween position — so
+ * without an explicit resting state the last-authored fromTo would define what
+ * a pre-first-tween seek renders. These sets pin the true resting state at 0,
+ * and every fromTo on these targets carries immediateRender:false so none of
+ * them can override it. (lint: gsap_repeated_fromto_without_baseline) */
+tl.set("#hero", { scale: HERO_SCALE * 0.94, x: HERO_X, y: HERO_Y }, 0);
+tl.set("#hook-line", { opacity: 0, y: 18 }, 0);
+tl.set(".tagchip", { opacity: 0, y: 16 }, 0);
+tl.set("#cursor", { opacity: 0, x: CURSOR_FROM_X, y: CURSOR_FROM_Y }, 0);
+tl.set("#plan-pill", { scale: 1 }, 0);
+
+/* ------------------------------------------------- scene 1 — the jumper */
+
+tl.fromTo(
+  "#hero",
+  { opacity: 0, scale: HERO_SCALE * 0.94, x: HERO_X, y: HERO_Y },
+  { opacity: 1, scale: HERO_SCALE, x: HERO_X, y: HERO_Y, duration: 0.8, ease: "power3.out", immediateRender: false },
+  0
+);
+
+/* beat-locked: 1.60s (strongCue) — the one line in scene 1 lands on the first
+   strong beat and then holds for 2.2s. */
+tl.fromTo(
+  "#hook-line",
+  { opacity: 0, y: 18 },
+  { opacity: 1, y: 0, duration: 0.5, ease: "power3.out", immediateRender: false },
+  1.6
+);
+tl.fromTo("#hook-line", { opacity: 1, y: 0 }, { opacity: 0, y: -14, duration: 0.42, ease: "power2.in", immediateRender: false }, 4.3);
+
+/* -------------------------------------------------- scene 2 — the tagging */
+
+/* beat-grid: chips at 4.75, 5.28, 5.80, 6.34, 6.86 — one per beat. Each is
+   one or two words, and the complete set holds for ~1.0s after the last. */
+var CHIP_BEATS = [4.75, 5.28, 5.8, 6.34, 6.86];
+var chipEls = document.querySelectorAll(".tagchip");
+for (var ci = 0; ci < chipEls.length; ci++) {
+  tl.fromTo(
+    chipEls[ci],
+    { opacity: 0, y: 16 },
+    { opacity: 1, y: 0, duration: 0.42, ease: "power3.out", immediateRender: false },
+    CHIP_BEATS[ci]
+  );
+}
+tl.fromTo(".tagchip", { opacity: 1 }, { opacity: 0, duration: 0.4, ease: "power2.in", immediateRender: false }, 7.38);
+
+/* The hero settles back into cell 0 of the grid. */
+tl.fromTo(
+  "#hero",
+  { scale: HERO_SCALE, x: HERO_X, y: HERO_Y },
+  { scale: 1, x: 0, y: 0, duration: 0.95, ease: "power2.inOut", immediateRender: false },
+  7.38
+);
+
+/* beat-locked: 8.96s (strongCue) — the eleventh tile finishes exactly on the
+   cue, so the closet completes with the music rather than near it. */
+tl.fromTo(
+  ".gridtile",
+  { opacity: 0, scale: 0.9 },
+  { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out", stagger: 0.091 },
+  7.7
+);
+
+/* beat-grid: 9.50s. The eleven "Tagging…" pills clear together — the moment
+   the closet finishes tagging, which is the point of the scene. */
+tl.fromTo(
+  ".gridtile .badge",
+  { opacity: 1 },
+  { opacity: 0, duration: 0.45, ease: "power2.inOut" },
+  9.5
+);
+
+/* beat-grid: 8.44s. Four words, settled 8.94 and held 1.6s. */
+tl.fromTo(
+  "#closet-caption",
+  { opacity: 0, y: 12 },
+  { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" },
+  8.44
+);
+
+/* Crossfade out of the closet. */
+tl.fromTo("#sc-closet", { opacity: 1 }, { opacity: 0, duration: 0.6, ease: "power1.inOut" }, 10.24);
+
+/* --------------------------------------------------- scene 3 — the week */
+
+tl.fromTo("#sc-week", { opacity: 0 }, { opacity: 1, duration: 0.6, ease: "power1.inOut", immediateRender: false }, 10.24);
+tl.fromTo("#phone", { y: 28 }, { y: 0, duration: 0.9, ease: "power3.out" }, 10.24);
+
+/* beat-grid: 11.06s. The title is the first thing to read in this scene, and
+   it is settled well before the cards start arriving. */
+tl.fromTo("#wk-rule", { opacity: 0, scaleX: 0, transformOrigin: "left center" }, { opacity: 1, scaleX: 1, duration: 0.5, ease: "power3.out" }, 11.06);
+tl.fromTo("#wk-title", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.6, ease: "power3.out" }, 11.06);
+
+/* The cursor arrives at the pill exactly on the 12.12 beat and taps it. */
+tl.fromTo("#cursor", { opacity: 0 }, { opacity: 1, duration: 0.22, immediateRender: false }, 11.4);
+tl.fromTo(
+  "#cursor",
+  { x: CURSOR_FROM_X, y: CURSOR_FROM_Y },
+  { x: CURSOR_TO_X, y: CURSOR_TO_Y, duration: 0.62, ease: "power2.inOut", immediateRender: false },
+  11.5
+);
+tl.fromTo("#plan-pill", { scale: 1 }, { scale: 0.94, duration: 0.1, ease: "power2.out", immediateRender: false }, 12.12);
+tl.fromTo("#plan-pill", { scale: 0.94 }, { scale: 1, duration: 0.22, ease: "power2.out", immediateRender: false }, 12.22);
+tl.fromTo("#tap-ring", { opacity: 0.55, scale: 0.34 }, { opacity: 0, scale: 1, duration: 0.6, ease: "power2.out" }, 12.12);
+tl.fromTo("#cursor", { opacity: 1 }, { opacity: 0, duration: 0.3, ease: "power2.in", immediateRender: false }, 12.8);
+
+/* beat-grid: day cards at 12.65 (also a strongCue), 13.70, 14.76 — every
+   OTHER beat, because each card carries text and one beat apart outruns it. */
+var CARD_BEATS = [12.65, 13.7, 14.76];
+for (var d2 = 0; d2 < CARD_BEATS.length; d2++) {
+  tl.fromTo(
+    "#daycard-" + d2,
+    { opacity: 0, y: 24 },
+    { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" },
+    CARD_BEATS[d2]
+  );
+}
+
+/* The reason line, in the model's own voice. Thirteen words, settled at 13.15
+   and held until 17.39 — 4.2s, comfortably past the reading floor. */
+tl.fromTo("#wk-reason", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, 12.65);
+
+tl.fromTo("#sc-week", { opacity: 1 }, { opacity: 0, duration: 0.6, ease: "power1.inOut", immediateRender: false }, 17.09);
+
+/* --------------------------------------------------- scene 4 — the outro */
+
+tl.fromTo("#sc-outro", { opacity: 0 }, { opacity: 1, duration: 0.6, ease: "power1.inOut" }, 17.09);
+
+/* beat-locked: 17.91s (strongCue) — the wordmark resolves on the cue. */
+tl.fromTo("#wordmark", { opacity: 0, y: 26 }, { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" }, 17.46);
+tl.fromTo("#tagline", { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, 18.3);
+tl.fromTo("#stackline", { opacity: 0 }, { opacity: 1, duration: 0.42, ease: "power2.out" }, 19.2);
+/* No sound under any of this. The film ends still, on the stage. */
+
+/* ------------------------------------------------------- audio-reactive */
+/* Pre-extracted per-frame data (see assets/audio-rms.js). On a dark stage the
+   glow IS the light source, so it carries a little more range than it did on
+   white: opacity 0.12-0.28, scale 1.000-1.055. Still subtle — if a viewer can
+   name the effect, it is too strong. */
+
+function sampler(frame) {
+  var r = RMS[frame];
+  var b = BASS[frame];
+  return function () {
+    gsap.set("#glow-a", { opacity: 0.12 + r * 0.16, scale: 1 + b * 0.055 });
+    gsap.set("#glow-b", { opacity: 0.12 + r * 0.16, scale: 1 + b * 0.055 });
+  };
+}
+for (var f = 0; f < RMS.length; f++) {
+  tl.call(sampler(f), [], f / AUDIO_FPS);
+}
+
+window.__timelines["main"] = tl;
+tl.seek(0);
+    </script>
+  </body>
+</html>
