@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet } from 'react-native';
@@ -92,6 +92,7 @@ export default function ItemDetailScreen() {
 
   return (
     <View style={styles.screen}>
+      <Stack.Screen options={{ title: itemTitle(item) }} />
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
@@ -198,6 +199,14 @@ function TagSummary({ tags }: { tags: ItemTags }) {
       ))}
     </View>
   );
+}
+
+/** Header title like "Navy Top"; falls back to "Item" until tags exist. */
+function itemTitle(item: ClosetItem): string {
+  if (!item.tags) return 'Item';
+  const color = item.tags.color.trim();
+  const category = capitalise(item.tags.category);
+  return color.length > 0 ? `${capitalise(color)} ${category}` : category;
 }
 
 function capitalise(value: string): string {
