@@ -6,7 +6,7 @@ Photograph your clothes, and Claude tags each item and plans an outfit for every
 of the coming week against the real forecast where you are. Everything lives on your
 phone; the only thing in the cloud is a tiny proxy that holds the API key.
 
-
+https://github.com/user-attachments/assets/b34fe4fb-7e77-49d1-b2ad-e8e5191c886a
 
 ## Requirements
 
