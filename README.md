@@ -6,9 +6,7 @@ Photograph your clothes, and Claude tags each item and plans an outfit for every
 of the coming week against the real forecast where you are. Everything lives on your
 phone; the only thing in the cloud is a tiny proxy that holds the API key.
 
-| Closet | Week | Settings |
-| --- | --- | --- |
-| _screenshot placeholder_ | _screenshot placeholder_ | _screenshot placeholder_ |
+
 
 ## Requirements
 
@@ -221,8 +219,10 @@ see which of the error codes above you are actually getting.
 
 ## Not in scope
 
-No accounts, no login, no cloud sync or backup — delete the app and the closet goes
-with it. No Android testing, no App Store or TestFlight build (Expo Go only, so no
-custom native modules). No laundry tracking, wear history, shopping suggestions or
-sharing. No offline AI: tagging and planning both need the network, though everything
-already saved keeps working without it.
+No accounts, no login, no cloud sync or backup — delete the app and the closet goes with it. 
+No Android testing.
+
+## Coming soon
+- App Store / TestFlight build 
+- laundry tracking
+- offline AI
