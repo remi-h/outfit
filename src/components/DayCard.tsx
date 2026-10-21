@@ -1,9 +1,12 @@
 import { SymbolView } from 'expo-symbols';
 import { memo } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet } from 'react-native';
+import { ActivityIndicator, StyleSheet } from 'react-native';
+import Animated, { FadeIn, LayoutAnimationConfig } from 'react-native-reanimated';
 
 import { Text, View, useThemeColor } from '@/components/Themed';
 import OutfitCollage, { resolveOutfitItems } from '@/src/components/OutfitCollage';
+import PressableScale from '@/src/components/PressableScale';
+import { CHIP_TEXT_TRANSITION, CHIP_TRANSITION } from '@/src/motion';
 import type { ClosetItem, DayForecast, DayPlan, Formality, Settings } from '@/src/types';
 import { toDisplayTemp, unitSuffix, wmoToIcon } from '@/src/weather';
 
@@ -92,83 +95,84 @@ function DayCardView({
   const thin = !failed && items.length > 0 && items.length < 2;
   const empty = !failed && items.length === 0;
 
+  // Fades only mark a change the user waited for: the first render of the
+  // week skips them, so seven cards do not all fade in at once on launch.
   return (
-    <View
-      style={styles.card}
-      lightColor="rgba(120,120,128,0.08)"
-      darkColor="rgba(120,120,128,0.18)">
-      <View style={styles.headerRow} lightColor="transparent" darkColor="transparent">
-        <View style={styles.dateBlock} lightColor="transparent" darkColor="transparent">
-          <Text style={styles.date}>{formatDate(date)}</Text>
-          {relativeLabel ? <Text style={styles.relative}>{relativeLabel}</Text> : null}
-        </View>
-        <Weather weather={weather} unit={unit} tint={text} />
-      </View>
-
-      <View style={styles.chipRow} lightColor="transparent" darkColor="transparent">
-        {DRESS_CODES.map((option) => (
-          <Chip
-            key={option.label}
-            label={option.label}
-            selected={dressCode === option.value}
-            // Chips stay live while planning: picking one is local state, and
-            // the card the user is waiting on is the one they are dressing.
-            onPress={() => onChangeDressCode(date, option.value)}
-          />
-        ))}
-      </View>
-
-      {needsRegenerate && !planning ? (
-        <Text style={styles.needsRegenerate}>
-          Dress code changed — regenerate to match it.
-        </Text>
-      ) : null}
-
-      {planning ? (
-        <View style={styles.busy} lightColor="transparent" darkColor="transparent">
-          <ActivityIndicator size="small" />
-          <Text style={styles.busyText}>Planning…</Text>
-        </View>
-      ) : (
-        <>
-          {failed ? (
-            <Text style={styles.failure}>
-              {plan?.reason?.trim() || 'That outfit broke the rules twice. Try again.'}
-            </Text>
-          ) : (
-            <>
-              <OutfitCollage itemIds={plan?.itemIds} itemsById={itemsById} />
-              {empty ? (
-                <Text style={styles.hint}>No outfit yet.</Text>
-              ) : thin ? (
-                <Text style={styles.hint}>
-                  Only one item left for this day — regenerate for a full outfit.
-                </Text>
-              ) : plan?.reason?.trim() ? (
-                <Text style={styles.reason} numberOfLines={2}>
-                  {plan.reason.trim()}
-                </Text>
-              ) : null}
-            </>
-          )}
-
-          <View style={styles.footer} lightColor="transparent" darkColor="transparent">
-            <Pressable
-              onPress={() => onRegenerate(date)}
-              disabled={disabled}
-              accessibilityRole="button"
-              accessibilityLabel={`${empty ? 'Plan' : 'Regenerate'} ${formatDate(date)}`}
-              accessibilityState={{ disabled }}
-              style={({ pressed }) => [
-                styles.regenerate,
-                { borderColor: text, opacity: disabled ? 0.4 : pressed ? 0.6 : 1 },
-              ]}>
-              <Text style={styles.regenerateText}>{empty ? 'Plan this day' : 'Regenerate'}</Text>
-            </Pressable>
+    <LayoutAnimationConfig skipEntering>
+      <View
+        style={styles.card}
+        lightColor="rgba(120,120,128,0.08)"
+        darkColor="rgba(120,120,128,0.18)">
+        <View style={styles.headerRow} lightColor="transparent" darkColor="transparent">
+          <View style={styles.dateBlock} lightColor="transparent" darkColor="transparent">
+            <Text style={styles.date}>{formatDate(date)}</Text>
+            {relativeLabel ? <Text style={styles.relative}>{relativeLabel}</Text> : null}
           </View>
-        </>
-      )}
-    </View>
+          <Weather weather={weather} unit={unit} tint={text} />
+        </View>
+
+        <View style={styles.chipRow} lightColor="transparent" darkColor="transparent">
+          {DRESS_CODES.map((option) => (
+            <Chip
+              key={option.label}
+              label={option.label}
+              selected={dressCode === option.value}
+              // Chips stay live while planning: picking one is local state, and
+              // the card the user is waiting on is the one they are dressing.
+              onPress={() => onChangeDressCode(date, option.value)}
+            />
+          ))}
+        </View>
+
+        {needsRegenerate && !planning ? (
+          <Text style={styles.needsRegenerate}>
+            Dress code changed — regenerate to match it.
+          </Text>
+        ) : null}
+
+        {planning ? (
+          <Animated.View entering={FadeIn.duration(200)} style={styles.busy}>
+            <ActivityIndicator size="small" />
+            <Text style={styles.busyText}>Planning…</Text>
+          </Animated.View>
+        ) : (
+          <Animated.View entering={FadeIn.duration(250)} style={styles.result}>
+            {failed ? (
+              <Text style={styles.failure}>
+                {plan?.reason?.trim() || 'That outfit broke the rules twice. Try again.'}
+              </Text>
+            ) : (
+              <>
+                <OutfitCollage itemIds={plan?.itemIds} itemsById={itemsById} />
+                {empty ? (
+                  <Text style={styles.hint}>No outfit yet.</Text>
+                ) : thin ? (
+                  <Text style={styles.hint}>
+                    Only one item left for this day — regenerate for a full outfit.
+                  </Text>
+                ) : plan?.reason?.trim() ? (
+                  <Text style={styles.reason} numberOfLines={2}>
+                    {plan.reason.trim()}
+                  </Text>
+                ) : null}
+              </>
+            )}
+
+            <View style={styles.footer} lightColor="transparent" darkColor="transparent">
+              <PressableScale
+                onPress={() => onRegenerate(date)}
+                disabled={disabled}
+                accessibilityRole="button"
+                accessibilityLabel={`${empty ? 'Plan' : 'Regenerate'} ${formatDate(date)}`}
+                accessibilityState={{ disabled }}
+                style={[styles.regenerate, { borderColor: text, opacity: disabled ? 0.4 : 1 }]}>
+                <Text style={styles.regenerateText}>{empty ? 'Plan this day' : 'Regenerate'}</Text>
+              </PressableScale>
+            </View>
+          </Animated.View>
+        )}
+      </View>
+    </LayoutAnimationConfig>
   );
 }
 
@@ -225,21 +229,24 @@ function Chip({
   const text = useThemeColor({}, 'text');
 
   return (
-    <Pressable
+    <PressableScale
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={`Dress code ${label}`}
       accessibilityState={{ selected }}
-      style={({ pressed }) => [
+      pressTransition={CHIP_TRANSITION}
+      style={[
         styles.chip,
         {
           borderColor: selected ? tint : 'rgba(127,127,127,0.5)',
           backgroundColor: selected ? tint : 'transparent',
-          opacity: pressed ? 0.6 : 1,
         },
       ]}>
-      <Text style={[styles.chipText, { color: selected ? contrastOn(tint) : text }]}>{label}</Text>
-    </Pressable>
+      <Animated.Text
+        style={[styles.chipText, CHIP_TEXT_TRANSITION, { color: selected ? contrastOn(tint) : text }]}>
+        {label}
+      </Animated.Text>
+    </PressableScale>
   );
 }
 
@@ -328,6 +335,10 @@ const styles = StyleSheet.create({
   busyText: {
     fontSize: 14,
     opacity: 0.7,
+  },
+  /** Keeps the card's own `gap` between the collage, its caption and the footer. */
+  result: {
+    gap: 12,
   },
   reason: {
     fontSize: 14,

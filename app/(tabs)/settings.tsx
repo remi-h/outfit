@@ -4,16 +4,18 @@ import {
   Keyboard,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   TextInput,
 } from 'react-native';
+import Animated from 'react-native-reanimated';
 
 import { Text, View, useThemeColor } from '@/components/Themed';
 import ErrorBanner from '@/src/components/ErrorBanner';
+import PressableScale from '@/src/components/PressableScale';
 import { geocodeResult, normalizePlace, type Place } from '@/src/location';
 import { useAppState } from '@/src/store';
+import { CHIP_TEXT_TRANSITION, CHIP_TRANSITION } from '@/src/motion';
 import type { Settings } from '@/src/types';
 import { toDisplayTemp, unitSuffix } from '@/src/weather';
 
@@ -237,21 +239,24 @@ function Chip({
   const text = useThemeColor({}, 'text');
 
   return (
-    <Pressable
+    <PressableScale
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
       accessibilityState={{ selected }}
-      style={({ pressed }) => [
+      pressTransition={CHIP_TRANSITION}
+      style={[
         styles.chip,
         {
           borderColor: selected ? tint : 'rgba(127,127,127,0.5)',
           backgroundColor: selected ? tint : 'transparent',
-          opacity: pressed ? 0.6 : 1,
         },
       ]}>
-      <Text style={[styles.chipText, { color: selected ? contrastOn(tint) : text }]}>{label}</Text>
-    </Pressable>
+      <Animated.Text
+        style={[styles.chipText, CHIP_TEXT_TRANSITION, { color: selected ? contrastOn(tint) : text }]}>
+        {label}
+      </Animated.Text>
+    </PressableScale>
   );
 }
 
@@ -272,23 +277,23 @@ function Button({
   const inactive = disabled || busy;
 
   return (
-    <Pressable
+    <PressableScale
       onPress={onPress}
       disabled={inactive}
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ disabled: inactive, busy }}
-      style={({ pressed }) => [
+      style={[
         styles.button,
         wide && styles.buttonWide,
-        { borderColor: tint, opacity: inactive ? 0.4 : pressed ? 0.6 : 1 },
+        { borderColor: tint, opacity: inactive ? 0.4 : 1 },
       ]}>
       {busy ? (
         <ActivityIndicator size="small" color={tint} />
       ) : (
         <Text style={[styles.buttonText, { color: tint }]}>{label}</Text>
       )}
-    </Pressable>
+    </PressableScale>
   );
 }
 

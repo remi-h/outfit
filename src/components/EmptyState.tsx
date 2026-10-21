@@ -1,7 +1,8 @@
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
-import { Pressable, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 
 import { Text, View, useThemeColor } from '@/components/Themed';
+import PressableScale from '@/src/components/PressableScale';
 
 export default function EmptyState({
   icon = { ios: 'tshirt', android: 'checkroom', web: 'checkroom' },
@@ -25,12 +26,12 @@ export default function EmptyState({
       <Text style={styles.title}>{title}</Text>
       {message ? <Text style={styles.message}>{message}</Text> : null}
       {actionLabel && onAction ? (
-        <Pressable
+        <PressableScale
           onPress={onAction}
           accessibilityRole="button"
-          style={({ pressed }) => [styles.action, { borderColor: tint, opacity: pressed ? 0.6 : 1 }]}>
+          style={[styles.action, { borderColor: tint }]}>
           <Text style={[styles.actionText, { color: tint }]}>{actionLabel}</Text>
-        </Pressable>
+        </PressableScale>
       ) : null}
     </View>
   );

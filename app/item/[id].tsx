@@ -2,9 +2,10 @@ import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet } from 'react-native';
 
 import { Text, View, useThemeColor } from '@/components/Themed';
+import PressableScale from '@/src/components/PressableScale';
 import TagEditor, { DEFAULT_TAGS } from '@/src/components/TagEditor';
 import { useAppState } from '@/src/store';
 import type { ClosetItem, ItemTags } from '@/src/types';
@@ -120,12 +121,12 @@ export default function ItemDetailScreen() {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Tags</Text>
-              <Pressable
+              <PressableScale
                 onPress={() => setEditing((previous) => !previous)}
                 accessibilityRole="button"
-                style={({ pressed }) => [styles.link, { opacity: pressed ? 0.6 : 1 }]}>
+                style={styles.link}>
                 <Text style={[styles.linkText, { color: tint }]}>{editing ? 'Done' : 'Edit'}</Text>
-              </Pressable>
+              </PressableScale>
             </View>
 
             {editing ? (
@@ -137,40 +138,37 @@ export default function ItemDetailScreen() {
         ) : (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>No tags yet</Text>
-            <Pressable
+            <PressableScale
               onPress={startManualTagging}
               accessibilityRole="button"
-              style={({ pressed }) => [
-                styles.outlineButton,
-                { borderColor: tint, opacity: pressed ? 0.6 : 1 },
-              ]}>
+              style={[styles.outlineButton, { borderColor: tint }]}>
               <Text style={[styles.outlineButtonText, { color: tint }]}>Add tags manually</Text>
-            </Pressable>
+            </PressableScale>
           </View>
         )}
 
-        <Pressable
+        <PressableScale
           onPress={retag}
           disabled={item.tagStatus === 'tagging'}
           accessibilityRole="button"
-          style={({ pressed }) => [
+          style={[
             styles.outlineButton,
             {
               borderColor: tint,
-              opacity: item.tagStatus === 'tagging' ? 0.4 : pressed ? 0.6 : 1,
+              opacity: item.tagStatus === 'tagging' ? 0.4 : 1,
             },
           ]}>
           <Text style={[styles.outlineButtonText, { color: tint }]}>
             {RETAG_LABEL[item.tagStatus]}
           </Text>
-        </Pressable>
+        </PressableScale>
 
-        <Pressable
+        <PressableScale
           onPress={confirmDelete}
           accessibilityRole="button"
-          style={({ pressed }) => [styles.deleteButton, { opacity: pressed ? 0.6 : 1 }]}>
+          style={styles.deleteButton}>
           <Text style={styles.deleteText}>Delete item</Text>
-        </Pressable>
+        </PressableScale>
 
         {/* Use a light status bar on iOS to account for the black space above the modal */}
         <StatusBar style={Platform.OS === 'ios' ? 'light' : 'auto'} />

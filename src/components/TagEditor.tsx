@@ -1,7 +1,10 @@
 import { useCallback } from 'react';
-import { Pressable, StyleSheet, Switch, TextInput } from 'react-native';
+import { StyleSheet, Switch, TextInput } from 'react-native';
+import Animated from 'react-native-reanimated';
 
 import { Text, View, useThemeColor } from '@/components/Themed';
+import PressableScale from '@/src/components/PressableScale';
+import { CHIP_TEXT_TRANSITION, CHIP_TRANSITION } from '@/src/motion';
 import { CATEGORIES, FORMALITIES, SEASONS, WARMTH_LEVELS } from '@/src/api';
 import type { ItemTags, Season } from '@/src/types';
 
@@ -139,23 +142,28 @@ function ChipRow<T extends string>({
       {options.map((option) => {
         const selected = isSelected(option);
         return (
-          <Pressable
+          <PressableScale
             key={option}
             onPress={() => onPress(option)}
             accessibilityRole="button"
             accessibilityState={{ selected }}
-            style={({ pressed }) => [
+            pressTransition={CHIP_TRANSITION}
+            style={[
               styles.chip,
               {
                 borderColor: selected ? tint : 'rgba(127,127,127,0.5)',
                 backgroundColor: selected ? tint : 'transparent',
-                opacity: pressed ? 0.6 : 1,
               },
             ]}>
-            <Text style={[styles.chipText, { color: selected ? contrastOn(tint) : text }]}>
+            <Animated.Text
+              style={[
+                styles.chipText,
+                CHIP_TEXT_TRANSITION,
+                { color: selected ? contrastOn(tint) : text },
+              ]}>
               {capitalise(option)}
-            </Text>
-          </Pressable>
+            </Animated.Text>
+          </PressableScale>
         );
       })}
     </View>
@@ -198,17 +206,17 @@ function StepButton({
 }) {
   const tint = useThemeColor({}, 'tint');
   return (
-    <Pressable
+    <PressableScale
       onPress={onPress}
       disabled={disabled}
       accessibilityRole="button"
       accessibilityLabel={label === '+' ? 'Increase warmth' : 'Decrease warmth'}
-      style={({ pressed }) => [
+      style={[
         styles.stepButton,
-        { borderColor: tint, opacity: disabled ? 0.3 : pressed ? 0.6 : 1 },
+        { borderColor: tint, opacity: disabled ? 0.3 : 1 },
       ]}>
       <Text style={[styles.stepButtonText, { color: tint }]}>{label}</Text>
-    </Pressable>
+    </PressableScale>
   );
 }
 

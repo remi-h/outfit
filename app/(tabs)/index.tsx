@@ -5,12 +5,12 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
-  Pressable,
   StyleSheet,
 } from 'react-native';
 import type { ImagePickerAsset } from 'expo-image-picker';
 
 import { Text, View, useThemeColor } from '@/components/Themed';
+import PressableScale from '@/src/components/PressableScale';
 import { PROXY_NOT_CONFIGURED_MESSAGE, isProxyConfigured } from '@/src/api';
 import ClosetGrid from '@/src/components/ClosetGrid';
 import EmptyState from '@/src/components/EmptyState';
@@ -185,19 +185,19 @@ export default function ClosetScreen() {
         </View>
       ) : null}
 
-      <Pressable
+      <PressableScale
         onPress={promptForSource}
         disabled={!!importing}
         accessibilityRole="button"
         accessibilityLabel="Add clothing"
-        style={({ pressed }) => [
+        style={[
           styles.fab,
-          { backgroundColor: tint, opacity: importing ? 0.4 : pressed ? 0.8 : 1 },
+          { backgroundColor: tint, opacity: importing ? 0.4 : 1 },
         ]}>
         <Text style={styles.fabText} lightColor="#fff" darkColor="#000">
           Add
         </Text>
-      </Pressable>
+      </PressableScale>
     </View>
   );
 }

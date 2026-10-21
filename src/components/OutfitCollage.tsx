@@ -1,7 +1,9 @@
 import { Image } from 'expo-image';
 import { StyleSheet } from 'react-native';
+import Animated, { Keyframe } from 'react-native-reanimated';
 
 import { Text, View } from '@/components/Themed';
+import { EASE_OUT } from '@/src/motion';
 import type { ClosetItem } from '@/src/types';
 
 /**
@@ -19,6 +21,25 @@ import type { ClosetItem } from '@/src/types';
 const MAX_TILES = 6;
 
 const DEFAULT_TILE = 76;
+
+/**
+ * Each tile rises a few points and settles from 92% as it fades in, 45ms after
+ * the one before it, so a new outfit is laid out piece by piece rather than
+ * appearing as a block. Built once per slot at module scope — a builder made
+ * inline in JSX is rebuilt on every render.
+ *
+ * Only plays when the collage mounts with a fresh outfit; `DayCard` wraps it in
+ * `LayoutAnimationConfig skipEntering`, so the first render of the week and
+ * cards scrolling back into view stay still. Reduce Motion skips it outright.
+ */
+const TILE_ENTERING = Array.from({ length: MAX_TILES + 1 }, (_, index) =>
+  new Keyframe({
+    0: { opacity: 0, transform: [{ translateY: 8 }, { scale: 0.92 }] },
+    100: { opacity: 1, transform: [{ translateY: 0 }, { scale: 1 }], easing: EASE_OUT },
+  })
+    .duration(320)
+    .delay(60 + index * 45)
+);
 
 /**
  * The plan's IDs, in order, as closet items. Unknown IDs and repeats are
@@ -67,9 +88,10 @@ export default function OutfitCollage({
 
   return (
     <View style={styles.grid} accessibilityRole="list">
-      {shown.map((item) => (
-        <View
+      {shown.map((item, index) => (
+        <Animated.View
           key={item.id}
+          entering={TILE_ENTERING[index]}
           style={[styles.tile, { width: tileSize, height: tileSize }]}
           accessibilityLabel={describe(item)}>
           <Image
@@ -79,16 +101,18 @@ export default function OutfitCollage({
             recyclingKey={item.id}
             transition={120}
           />
-        </View>
+        </Animated.View>
       ))}
 
       {hidden > 0 ? (
-        <View
-          style={[styles.tile, styles.more, { width: tileSize, height: tileSize }]}
-          lightColor="rgba(127,127,127,0.15)"
-          darkColor="rgba(127,127,127,0.25)">
-          <Text style={styles.moreText}>{`+${hidden}`}</Text>
-        </View>
+        <Animated.View entering={TILE_ENTERING[shown.length]}>
+          <View
+            style={[styles.tile, styles.more, { width: tileSize, height: tileSize }]}
+            lightColor="rgba(127,127,127,0.15)"
+            darkColor="rgba(127,127,127,0.25)">
+            <Text style={styles.moreText}>{`+${hidden}`}</Text>
+          </View>
+        </Animated.View>
       ) : null}
     </View>
   );

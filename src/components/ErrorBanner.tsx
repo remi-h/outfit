@@ -1,12 +1,13 @@
-import {
-  ActivityIndicator,
-  Pressable,
-  StyleSheet,
-  type StyleProp,
-  type ViewStyle,
-} from 'react-native';
+import { ActivityIndicator, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
 import { Text, View, useThemeColor } from '@/components/Themed';
+import PressableScale from '@/src/components/PressableScale';
+import { EASE_OUT } from '@/src/motion';
+
+// Leaves ~20% faster than it arrives: the arrival needs reading, the exit doesn't.
+const BANNER_ENTERING = FadeIn.duration(220).easing(EASE_OUT);
+const BANNER_EXITING = FadeOut.duration(170).easing(EASE_OUT);
 
 /**
  * A one-message failure strip with a Retry action, and an optional second
@@ -37,33 +38,39 @@ export default function ErrorBanner({
 }) {
   const text = useThemeColor({}, 'text');
 
+  // The outer view carries the margins and the fade; the inner one the colour.
   return (
-    <View
-      accessibilityRole="alert"
-      style={[styles.container, style]}
-      lightColor="#fdecea"
-      darkColor="rgba(255,69,58,0.16)">
-      <Text style={styles.message} lightColor="#8a1c12" darkColor="#ffb4ad">
-        {message}
-      </Text>
+    <Animated.View
+      entering={BANNER_ENTERING}
+      exiting={BANNER_EXITING}
+      style={[styles.outer, style]}>
+      <View
+        accessibilityRole="alert"
+        style={styles.container}
+        lightColor="#fdecea"
+        darkColor="rgba(255,69,58,0.16)">
+        <Text style={styles.message} lightColor="#8a1c12" darkColor="#ffb4ad">
+          {message}
+        </Text>
 
-      {onRetry || (onSecondaryAction && secondaryLabel) ? (
-        <View style={styles.actions} lightColor="transparent" darkColor="transparent">
-          {onRetry ? (
-            <BannerButton
-              label={retryLabel}
-              busy={busy}
-              color={text}
-              emphasis
-              onPress={onRetry}
-            />
-          ) : null}
-          {onSecondaryAction && secondaryLabel ? (
-            <BannerButton label={secondaryLabel} color={text} onPress={onSecondaryAction} />
-          ) : null}
-        </View>
-      ) : null}
-    </View>
+        {onRetry || (onSecondaryAction && secondaryLabel) ? (
+          <View style={styles.actions} lightColor="transparent" darkColor="transparent">
+            {onRetry ? (
+              <BannerButton
+                label={retryLabel}
+                busy={busy}
+                color={text}
+                emphasis
+                onPress={onRetry}
+              />
+            ) : null}
+            {onSecondaryAction && secondaryLabel ? (
+              <BannerButton label={secondaryLabel} color={text} onPress={onSecondaryAction} />
+            ) : null}
+          </View>
+        ) : null}
+      </View>
+    </Animated.View>
   );
 }
 
@@ -81,33 +88,31 @@ function BannerButton({
   emphasis?: boolean;
 }) {
   return (
-    <Pressable
+    <PressableScale
       onPress={onPress}
       disabled={busy}
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ busy, disabled: busy }}
-      style={({ pressed }) => [
+      style={[
         styles.button,
-        {
-          borderColor: color,
-          borderWidth: emphasis ? 1 : 0,
-          opacity: busy ? 0.5 : pressed ? 0.6 : 1,
-        },
+        { borderColor: color, borderWidth: emphasis ? 1 : 0, opacity: busy ? 0.5 : 1 },
       ]}>
       {busy ? (
         <ActivityIndicator size="small" color={color} />
       ) : (
         <Text style={[styles.buttonText, { color }]}>{label}</Text>
       )}
-    </Pressable>
+    </PressableScale>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  outer: {
     marginHorizontal: 16,
     marginTop: 12,
+  },
+  container: {
     padding: 14,
     borderRadius: 12,
     gap: 10,

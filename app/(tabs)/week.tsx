@@ -1,9 +1,9 @@
+import * as Haptics from 'expo-haptics';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
-  Pressable,
   RefreshControl,
   StyleSheet,
   type ListRenderItemInfo,
@@ -14,6 +14,7 @@ import { toApiError, type PlanRequestOtherDay } from '@/src/api';
 import DayCard from '@/src/components/DayCard';
 import EmptyState from '@/src/components/EmptyState';
 import ErrorBanner from '@/src/components/ErrorBanner';
+import PressableScale from '@/src/components/PressableScale';
 import { normalizePlace, resolveLocation } from '@/src/location';
 import { MIN_TAGGED_ITEMS, generatePlans, planReadiness } from '@/src/planner';
 import { useAppState } from '@/src/store';
@@ -276,10 +277,14 @@ export default function WeekScreen() {
         } else if (result.plans.length > 0) {
           setPlans(result.plans);
         }
+        // Same moment the outfit tiles start landing, so the tap and the
+        // reveal read as one event. Haptics are never the only signal.
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } catch (error) {
         // Offline, bad token, rate limited: one banner, and every stored plan
         // stays exactly where it was.
         setPlanError(toApiError(error).message);
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       } finally {
         planBusyRef.current = false;
         setPlanningDates(null);
@@ -389,25 +394,22 @@ export default function WeekScreen() {
           </Text>
         </View>
 
-        <Pressable
+        <PressableScale
           onPress={planWeek}
           disabled={planning || !readiness.ready}
           accessibilityRole="button"
           accessibilityLabel="Plan week"
           accessibilityState={{ disabled: planning || !readiness.ready, busy: planning }}
-          style={({ pressed }) => [
+          style={[
             styles.planButton,
-            {
-              backgroundColor: tint,
-              opacity: planning || !readiness.ready ? 0.4 : pressed ? 0.8 : 1,
-            },
+            { backgroundColor: tint, opacity: planning || !readiness.ready ? 0.4 : 1 },
           ]}>
           {planning ? (
             <ActivityIndicator size="small" color={contrastOn(tint)} />
           ) : (
             <Text style={[styles.planButtonText, { color: contrastOn(tint) }]}>Plan week</Text>
           )}
-        </Pressable>
+        </PressableScale>
       </View>
 
       {locationError ? (
